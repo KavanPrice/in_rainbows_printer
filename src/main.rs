@@ -7,7 +7,9 @@ use std::time::Duration;
 use std::{io, thread};
 
 fn main() {
+    // Set some global states to keep track of the previous row iteration.
     let (mut prev_num_cols, mut prev_num_rows, mut prev_left_pad) = (0usize, 0usize, 0usize);
+    let mut prev_colors: Vec<Color> = Vec::new();
 
     loop {
         // The parameter calculations are performed every time so that we can resize the
@@ -28,40 +30,73 @@ fn main() {
 
         let (num_cols, num_rows, left_pad) = calc_thread_handle.join().unwrap();
 
-        for _ in 0..left_pad {
-            print!(" ");
+        // If we have adjacent colors in a column, we have a high chance that
+        // the current one is swapped for a new one. We only want to check this
+        // if the number of columns actually match.
+        let mut current_colors = get_random_colors(&consts::COLORS, num_cols);
+        if current_colors == prev_colors {
+            for i in 0..current_colors.len() {
+                if current_colors[i] == prev_colors[i] {
+                    current_colors[i] = *consts::COLORS.choose(&mut rand::thread_rng()).unwrap()
+                }
+            }
         }
-        for _ in 0..num_cols {
-            print!(
-                "{}",
-                &mutate_str(consts::IN_RAINBOWS, &consts::SYMBOLS, &consts::COLORS)
-            );
-        }
-        println!();
+
+        print_row(
+            &consts::IN_RAINBOWS,
+            &consts::SYMBOLS,
+            &current_colors,
+            left_pad,
+        );
 
         (prev_num_cols, prev_num_rows, prev_left_pad) = (num_cols, num_rows, left_pad);
+        prev_colors = current_colors;
     }
 }
 
+/// Print a full colored row across the width of the terminal
+fn print_row(s: &str, symbols: &[char], row_colors: &Vec<Color>, left_pad: usize) {
+    for _ in 0..left_pad {
+        print!(" ");
+    }
+    for i in 0..row_colors.len() {
+        print!("{}", &mutate_str(s, symbols, &row_colors[i]));
+    }
+    println!();
+}
+
+/// Print a full rectangle covering the entire terminal.
 fn spawn_full_rect(num_cols: usize, num_rows: usize, left_pad: usize) {
+    let mut prev_colors: Vec<Color> = Vec::new();
     // Clear terminal to prepare to fill whole terminal again
     crossterm::execute!(stdout(), terminal::Clear(ClearType::All)).unwrap();
 
     for _ in 0..num_rows {
-        for _ in 0..left_pad {
-            print!(" ");
+        let mut current_colors = get_random_colors(&consts::COLORS, num_cols);
+
+        if !prev_colors.is_empty() {
+            assert_eq!(current_colors.len(), prev_colors.len());
+            for i in 0..current_colors.len() {
+                if current_colors[i] == prev_colors[i] {
+                    current_colors[i] = *consts::COLORS.choose(&mut rand::thread_rng()).unwrap()
+                }
+            }
         }
-        for _ in 0..num_cols {
-            print!(
-                "{}",
-                &mutate_str(consts::IN_RAINBOWS, &consts::SYMBOLS, &consts::COLORS)
-            );
-        }
-        println!();
+
+        print_row(
+            &consts::IN_RAINBOWS,
+            &consts::SYMBOLS,
+            &current_colors,
+            left_pad,
+        );
+
+        prev_colors = current_colors;
     }
 }
 
-fn mutate_str(s: &str, symbols: &[char], colors: &[Color]) -> ColoredString {
+/// Add the "in_rainbows" styling to an `&str` by adding a symbol and a color.
+/// Returns a `colored::ColoredString`.
+fn mutate_str(s: &str, symbols: &[char], color: &Color) -> ColoredString {
     let (left, right) = s.split_at(rand::random::<usize>() % s.len());
     format!(
         "{}{}{} ",
@@ -69,7 +104,7 @@ fn mutate_str(s: &str, symbols: &[char], colors: &[Color]) -> ColoredString {
         symbols.choose(&mut rand::thread_rng()).unwrap(),
         right
     )
-    .color(*colors.choose(&mut rand::thread_rng()).unwrap())
+    .color(*color)
 }
 
 /// Calculate the number of columns and rows needed to output to the terminal as well as the
@@ -80,6 +115,15 @@ fn calculate_term_params() -> io::Result<(usize, usize, usize)> {
     let num_rows = terminal_height as usize - 1;
     let left_pad = (terminal_width as usize % (consts::IN_RAINBOWS.len() + 2)) / 2;
     Ok((num_cols, num_rows, left_pad))
+}
+
+/// Make a vector of random colors from the passed color array.
+fn get_random_colors(colors: &[Color], length: usize) -> Vec<Color> {
+    let mut color_vec: Vec<Color> = Vec::new();
+    for _ in 0..length {
+        color_vec.push(*colors.choose(&mut rand::thread_rng()).unwrap());
+    }
+    color_vec
 }
 
 mod consts {
