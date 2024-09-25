@@ -2,6 +2,10 @@
 name = "in_rainbows_printer"
 version = "0.1.0"
 edition = "2021"
+license-file = "LICENSE.md"
+description = "Prints some In Rainbows-style (the Radiohead album) text to your termial."
+repository = "https://github.com/KavanPrice/in_rainbows_printer"
+readme = "README.md"
 
 [dependencies]
 rand = "0.8.5"
